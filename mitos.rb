@@ -22,6 +22,11 @@ module Mitos
 
       MYSTERY_V = "V"
 
+      ZERO_POSITION = 30000
+
+      # hard code syringe sizes for now
+      SYRINGE_SIZE = 2500
+
       
 	 def initialize(port)
 		@sp = SerialPort.new(port,9600,8,1)
@@ -31,16 +36,53 @@ module Mitos
 	 end
 
 	 def status
-	 	#might have a problem if the number of bytes varies
         pump_command(0,STATUS)
         pump_command(1,STATUS)
 	 end
 
-	 def set_port(address,position)
+	 def set_syringe(address,position)
 
 	 end
 
-	private
+	 def fill_syringe(address)
+	 	cmd = [MOVE_SYRINGE_POS,ZERO_POSITION].join(" ")
+	 	pump_command(address,cmd)
+	 end
+
+	 def set_rate(address,rate)
+	 	pos = rate*ZERO_POSITION/SYRINGE_SIZE
+	 	cmd = [SET_PUMP_RATE,pos].join(" ")
+	 	pump_command(address,cmd)
+	 end
+
+	 def stop(address)
+	 	pump_command(address,STOP)	
+	 end
+
+	 def set_port(address,position)
+
+	 	# check that the port is ready
+
+	 	case position
+	 	when "A"
+	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_A].join(" ")
+	 		pump_command(address,cmd)
+	 	when "B"
+
+	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_B].join(" ")
+	 		pump_command(address,cmd)
+	 	when "C"
+	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_C].join(" ")
+			pump_command(address,cmd)
+	 	when "D"
+	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_D].join(" ")
+	 		pump_command(address,cmd)
+	 	else
+	 		puts "#{position} is not a valid port setting for this pump"
+	 	end
+	 end
+
+ private
 
 	 def parse_response(str)
 	 	# check the input is of the correct format - regexp
@@ -105,8 +147,6 @@ module Mitos
 		sleep(0.25)
 	 end
 
-	 
-
 	 def read
 		begin
 			str = @sp.readline(sep="\r")
@@ -125,5 +165,15 @@ end
 pump = Mitos::XsDuoBasic.new("COM1")
 pump.status
 
+# must stop if motors are busy
+
+# need a listener and msg queue
+
 #low level valve command
 #pump.set_port(0,"A")
+
+#pump.set_rate(0,1000)
+#sleep(1)
+#pump.set_port(0,"A")
+#sleep(2)
+#pump.fill_syringe(0)
