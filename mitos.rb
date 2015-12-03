@@ -22,7 +22,7 @@ module Mitos
 
       MYSTERY_V = "V"
 
-
+      
 	 def initialize(port)
 		@sp = SerialPort.new(port,9600,8,1)
 
@@ -32,9 +32,8 @@ module Mitos
 
 	 def status
 	 	#might have a problem if the number of bytes varies
-	 	read_15 = read_bytes(15)
-        pump_command(0,STATUS,read_15)
-        pump_command(1,STATUS,read_15)
+        pump_command(0,STATUS)
+        pump_command(1,STATUS)
 	 end
 
 	 def set_port(address,position)
@@ -76,24 +75,23 @@ module Mitos
 	 end
 
 	 def init_syringes
-	 	read_7 = read_bytes(7)
-
 		puts "Initialising pump valves"
-		pump_command(0,INITIALIZE_VALVE,read_7)
-		pump_command(1,INITIALIZE_VALVE,read_7)
+		pump_command(0,INITIALIZE_VALVE)
+		pump_command(1,INITIALIZE_VALVE)
 		
 		sleep(2)
 
 		puts "Initialising syringes"
-		pump_command(0,INITIALIZE_SYRINGE,read_7)
-		pump_command(1,INITIALIZE_SYRINGE,read_7)
+		pump_command(0,INITIALIZE_SYRINGE)
+		pump_command(1,INITIALIZE_SYRINGE)
 
 		flush_input
 	 end
 
-	 def pump_command(address,request,read_proc)
+
+	 def pump_command(address,request)
 	 	write(address,request)
-	 	parse_response(read_proc.call)
+	 	parse_response(read)
 	 end
 
 	 def flush_input
@@ -107,8 +105,17 @@ module Mitos
 		sleep(0.25)
 	 end
 
-	 def read_bytes(n)
-		return Proc.new {@sp.read(n)}
+	 
+
+	 def read
+		begin
+			str = @sp.readline(sep="\r")
+		rescue EOFError
+			puts "EOF"
+		rescue Interupt
+			puts "Write Interupt"
+		end
+		return str
 	 end
 
 	end
@@ -119,4 +126,4 @@ pump = Mitos::XsDuoBasic.new("COM1")
 pump.status
 
 #low level valve command
-pump.set_port(0,"A")
+#pump.set_port(0,"A")
