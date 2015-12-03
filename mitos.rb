@@ -2,9 +2,25 @@ require 'serialport'
 
 module Mitos
 
+	class CmdQ
+
+		def initialize
+			@q = Array.new
+		end
+
+		def push(command)
+			@q.push(command)
+		end
+
+		def shift
+			@q.shift
+		end
+	end
+
+
 	class XsDuoBasic
- 
- 	  ## COMMANDS ##
+
+	  ## COMMANDS ##
       INITIALIZE_SYRINGE = "I1"
       INITIALIZE_VALVE = "I2"
       STATUS = "S3"
@@ -27,66 +43,33 @@ module Mitos
       # hard code syringe sizes for now
       SYRINGE_SIZE = 2500
 
-      
-	 def initialize(port)
-		@sp = SerialPort.new(port,9600,8,1)
+	  def initialize(port)
+		@portname = port || "COM1"
+		@sp = SerialPort.new(@portname,9600,8,1)
+		@cmd_queue = CmdQ.new
+	  end
 
- 		flush_coms
-		init_syringes
-	 end
+	  def run
+	  	#process the command queue
+	  	#see flow diagram - recreate a logical construction of the process
+	  	# on interupt rescue, stop pump, delete command queue and exit
+	  	# may need to have unformatted cmds so we can id which type of command is being requested
+	  	
+	  	puts "processing command queue..."
+	  	while cmd = @cmd_queue.shift
+	  		write(cmd)
+	  		str = listen
+	  		puts str
+	  		parse_response(str)
+	  		# look at command response and wait or proceed on queue
+	  	end
+	  	puts "...command queue complete"
 
-	 def status
-        pump_command(0,STATUS)
-        pump_command(1,STATUS)
-	 end
+	  
+	  end
 
-	 def set_syringe(address,position)
-
-	 end
-
-	 def fill_syringe(address)
-	 	cmd = [MOVE_SYRINGE_POS,ZERO_POSITION].join(" ")
-	 	pump_command(address,cmd)
-	 end
-
-	 def set_rate(address,rate)
-	 	pos = rate*ZERO_POSITION/SYRINGE_SIZE
-	 	cmd = [SET_PUMP_RATE,pos].join(" ")
-	 	pump_command(address,cmd)
-	 end
-
-	 def stop(address)
-	 	pump_command(address,STOP)	
-	 end
-
-	 def set_port(address,position)
-
-	 	# check that the port is ready
-
-	 	case position
-	 	when "A"
-	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_A].join(" ")
-	 		pump_command(address,cmd)
-	 	when "B"
-
-	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_B].join(" ")
-	 		pump_command(address,cmd)
-	 	when "C"
-	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_C].join(" ")
-			pump_command(address,cmd)
-	 	when "D"
-	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_D].join(" ")
-	 		pump_command(address,cmd)
-	 	else
-	 		puts "#{position} is not a valid port setting for this pump"
-	 	end
-	 end
-
- private
-
-	 def parse_response(str)
+	   def parse_response(str)
 	 	# check the input is of the correct format - regexp
-	 	puts str
 	 	res = str.split(" ")
 	 	header = res[0].split("")
 	 	type = header[3].to_i
@@ -110,70 +93,106 @@ module Mitos
 
 	 end
 
-   	 def flush_coms
-		write(0,FLUSH)
-		write(1,FLUSH)
-		flush_input
+
+	  def listen
+		@sp.readline(sep="\r")
+	  end
+
+	  def init
+			puts "init"
+			@cmd_queue.push(cmd_str(0,FLUSH))
+			@cmd_queue.push(cmd_str(1,FLUSH))
+			puts "Initialising pump valves"
+			@cmd_queue.push(cmd_str(0,INITIALIZE_VALVE))
+			@cmd_queue.push(cmd_str(1,INITIALIZE_VALVE))
+			puts "Initialising syringes"
+			@cmd_queue.push(cmd_str(0,INITIALIZE_SYRINGE))
+			@cmd_queue.push(cmd_str(1,INITIALIZE_SYRINGE))
+	  end
+
+	  def status
+	  		@cmd_queue.push(cmd_str(0,STATUS))
+	  		@cmd_queue.push(cmd_str(1,STATUS))
+	  end
+
+	  def pump_command(address,request)
+	 		write(address,request)
+	  end
+
+	  def write(cmd)
+		 	@sp.write(cmd)
+		 	sleep(0.25)
+	  end
+
+	  def cmd_str(address,request)
+	  		header = "$0"
+	  		header+address.to_s+request+"\r"
+	  end
+
+	  def flush_input
+	 		@sp.flush_input
+	 		sleep(1)
+	  end
+
+	  def fill_syringe(address)
+	 	cmd = [MOVE_SYRINGE_POS,ZERO_POSITION].join(" ")
+	 	@cmd_queue.push(command_str(address,cmd))
 	 end
 
-	 def init_syringes
-		puts "Initialising pump valves"
-		pump_command(0,INITIALIZE_VALVE)
-		pump_command(1,INITIALIZE_VALVE)
-		
-		sleep(2)
-
-		puts "Initialising syringes"
-		pump_command(0,INITIALIZE_SYRINGE)
-		pump_command(1,INITIALIZE_SYRINGE)
-
-		flush_input
+	 def set_rate(address,rate)
+	 	pos = rate*ZERO_POSITION/SYRINGE_SIZE
+	 	cmd = [SET_PUMP_RATE,pos].join(" ")
+	 	@cmd_queue.push(command_str(address,cmd))
 	 end
 
+	 def set_port(address,position)
 
-	 def pump_command(address,request)
-	 	write(address,request)
-	 	parse_response(read)
+	 	# check that the port is ready
+
+	 	case position
+	 	when "A"
+	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_A].join(" ")
+	 		@cmd_queue.push(command_str(address,cmd))
+	 	when "B"
+
+	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_B].join(" ")
+	 		@cmd_queue.push(command_str(address,cmd))
+	 	when "C"
+	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_C].join(" ")
+			@cmd_queue.push(command_str(address,cmd))
+	 	when "D"
+	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_D].join(" ")
+	 		@cmd_queue.push(command_str(address,cmd))
+	 	else
+	 		puts "#{position} is not a valid port setting for this pump"
+	 	end
 	 end
+	
+	end
 
-	 def flush_input
-	 	@sp.flush_input
-	 	sleep(1)
-	 end
+	#rep classes - might use later on 
+	class Injector
+	end
 
-	 def write(pump,command)
-	 	header = "$0"
-		@sp.write(header+pump.to_s+command+"\r")
-		sleep(0.25)
-	 end
+	class Syringe
+	end
 
-	 def read
-		begin
-			str = @sp.readline(sep="\r")
-		rescue EOFError
-			puts "EOF"
-		rescue Interupt
-			puts "Write Interupt"
-		end
-		return str
-	 end
-
+	class Valve
 	end
 
 end
 
+
+#add all pump instructions to a command queue 
+#process the command queue, waiting appropriately for the pumps and valves to move by monitoring the status signals
+#main process will run through the queue
+
 pump = Mitos::XsDuoBasic.new("COM1")
+pump.init
 pump.status
 
-# must stop if motors are busy
+# we are done with commands, run the commands!
+pump.run
 
-# need a listener and msg queue
 
-#low level valve command
-#pump.set_port(0,"A")
 
-#pump.set_rate(0,1000)
-#sleep(1)
-#pump.set_port(0,"A")
-#sleep(2)
-#pump.fill_syringe(0)
