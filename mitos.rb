@@ -1,75 +1,100 @@
 require 'serialport'
 
-class Mitos
+module Mitos
 
-	def initialize(port)
+	class XsDuoBasic
+ 
+ 	  ## COMMANDS ##
+      INITIALIZE_SYRINGE = "I1"
+      INITIALIZE_VALVE = "I2"
+      STATUS = "S3"
+      FLUSH = "F"
+      SET_POSITION = "I3"
+      STOP = "X"
+      SET_PUMP_RATE = "E2 3"
+      MOVE_SYRINGE_POS = "E2 1"
+      MOVE_VALVE_POS = "E2 2"
+
+      MYSTERY_V = "V"
+
+
+
+	 def initialize(port)
 		@sp = SerialPort.new(port,9600,8,1)
 
  		flush_coms
 		init_syringes
-		status
-	end
+	 end
 
-	def status
+	 def status
+	 	read_15 = read_bytes(15)
 
-        @sp.write("$00S3\r")
-        sleep(0.25)
-  
-        puts @sp.read(15)
+        write(0,STATUS)
+        puts read_15.call
 
-        @sp.write("$01S3\r")
-        sleep(0.25)
+        write(1,STATUS)
+        str = read_15.call
 
-        puts @sp.read(15)
-		sleep(1)
+        # parse inputs
 
-		puts("port")
-		
+        # check the input is of the correct format - regexp
+        # split the string on spaces
 
-        @sp.write("$01E2 2 16\r")
-        puts @sp.read(7)
+        puts str.split(" ")
 
-	end
+	 end
 
-private
+	private
 
-   	def flush_coms
-		@sp.write("$00F\r")
-		sleep(0.25)
-		@sp.write("$01F\r")
-		sleep(0.25)
-		#@sp.flush_input
-	end
+   	 def flush_coms
+		write(0,FLUSH)
+		write(1,FLUSH)
+		flush_input
+	 end
 
-	def init_syringes
-		sleep(1)
+	 def init_syringes
+
+	 	read_7 = read_bytes(7)
+
 		puts "Initialising pump valves"
-		@sp.write("$00I1\r")
-		sleep(0.25)
-		puts @sp.read(7)
 
-		@sp.write("$01I2\r")
-		sleep(0.25)
-		puts @sp.read(7)
+		write(0,INITIALIZE_VALVE)
+		puts read_7.call
+
+		write(1,INITIALIZE_VALVE)
+		puts read_7.call
 		
 		sleep(2)
+
 		puts "Initialising syringes"
-		@sp.write("$00I1\r")
-		sleep(0.25)
-		puts @sp.read(7)
-		
-		@sp.write("$01I1\r")
-		sleep(0.25)
-		puts @sp.read(7)
 
+		write(0,INITIALIZE_SYRINGE)
+		puts read_7.call
 		
-		
-		#sleep(0.25)
-		sleep(2)
-		@sp.flush_input
+		write(1,INITIALIZE_SYRINGE)
+		puts read_7.call
+
+		flush_input
+	 end
+
+	 def flush_input
+	 	@sp.flush_input
+	 	sleep(1)
+	 end
+
+	 def write(pump,command)
+	 	header = "$0"
+		@sp.write(header+pump.to_s+command+"\r")
+		sleep(0.25)
+	 end
+
+	 def read_bytes(n)
+		return Proc.new {@sp.read(n)}
+	 end
+
 	end
 
 end
 
-m = Mitos.new("COM1")
-
+pump = Mitos::XsDuoBasic.new("COM1")
+pump.status
