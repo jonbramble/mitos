@@ -2,19 +2,52 @@ require 'serialport'
 
 module Mitos
 
-	class CmdQ
+	class CommandQueue
 
-		def initialize
+		def initialize(address)
+			@address = address
 			@q = Array.new
 		end
 
-		def push(command)
+		def push(request)
+			command = cmd_str(@address,request)
 			@q.push(command)
 		end
 
 		def shift
 			@q.shift
 		end
+
+		def each
+			@q.each
+		end
+
+		def empty?
+			@q.empty?
+		end
+
+		def first
+			@q.first
+		end
+
+		def address
+			@address
+		end
+
+		def cmd_str(address,request)
+	  		header = "$0"
+	  		header+address.to_s+request+"\r"
+	  	end
+	end
+
+		#rep classes - might use later on 
+	class Injector
+	end
+
+	class Syringe
+	end
+
+	class Valve
 	end
 
 
@@ -46,7 +79,9 @@ module Mitos
 	  def initialize(port)
 		@portname = port || "COM1"
 		@sp = SerialPort.new(@portname,9600,8,1)
-		@cmd_queue = CmdQ.new
+		@cmd_queue_0 = CommandQueue.new(0)
+		@cmd_queue_1 = CommandQueue.new(1)
+		init # adds startup sequence commands to queue
 	  end
 
 	  def run
@@ -54,19 +89,92 @@ module Mitos
 	  	#see flow diagram - recreate a logical construction of the process
 	  	# on interupt rescue, stop pump, delete command queue and exit
 	  	# may need to have unformatted cmds so we can id which type of command is being requested
-	  	
+
+	  	#check that the ret valves are good to go
+
+	  	#ensures that the queue is not empty for event loop
+	  	status
+
 	  	puts "processing command queue..."
-	  	while cmd = @cmd_queue.shift
+	  	loop do
+
+	  		#break out if queues are complete
+	  		if @cmd_queue_0.empty? && @cmd_queue_1.empty?
+	  			break
+	  		end
+
+	  		#start with queue 0 - how to I switch about?
+	  		cmd = @cmd_queue_0.shift
+	  		puts "-> #{cmd}"
 	  		write(cmd)
-	  		str = listen
-	  		puts str
-	  		parse_response(str)
+
+	  		
+	  		begin
+	  			str = listen
+	  		rescue EOFError
+	  			puts "No more messages from pump"
+	  			break
+	  		rescue Interupt
+	  			puts "Operations halted"
+	  			#write stop
+	  			break
+	  		end
+
+	  		puts "<- #{str}"
+	  		rep = parse_response(str)
+	  		puts rep
+
 	  		# look at command response and wait or proceed on queue
+
+	  		# Is it a status message
+	  		# Yes
+	  		if rep[:status]
+	  			address = rep[:address]
+	  			#need to process queue for that address
+	  			
+	  			if address==1
+	  				queue = @cmd_queue_1
+	  				other_queue = @cmd_queue_0
+	  			else
+	  				queue = @cmd_queue_0
+	  				other_queue = @cmd_queue_1
+	  			end
+
+				#command pending?
+	  			#No
+	  			if queue.empty?
+	  				other_queue.push(STATUS)
+	  			else 
+	  				pending = queue.first
+	  				puts pending
+	  			end
+
+	  		# No
+	  		elsif !rep[:status]
+	  			case rep[:type]
+	  			when 0
+	  				puts "OK"
+	  				@cmd_queue_0.push(STATUS)
+	  			when 1
+	  				puts "Invalid Command"
+	  				@cmd_queue_0.push(STATUS)
+	  			when 2
+	  				puts "Busy - command ignored"
+	  				@cmd_queue_0.push(STATUS)
+	  			when 3
+	  				puts "Can't Process - input out of range or error"
+	  				@cmd_queue_0.push(STATUS)
+	  			end
+	  		else
+	  			puts "unknown message type"
+	  		end
 	  	end
 	  	puts "...command queue complete"
 
 	  
 	  end
+
+
 
 	   def parse_response(str)
 	 	# check the input is of the correct format - regexp
@@ -74,59 +182,68 @@ module Mitos
 	 	header = res[0].split("")
 	 	type = header[3].to_i
 
+	 	address = header[2]
+	 	
+	 	rep = {address: address, error: :false, type: res[1]}	# response hash
+
 	 	#for testing
 	 	
-	 	#command recieved
+	 	#command received
 	 	if type==1
-	 		puts "Command"
-	 		puts res[1]
-	 		## make some kind of response hash
-	 	#status
+	 		rep[:status] = false
 	 	elsif type==9
-	 		puts "Status"
-	 		puts res[1]
+	 		rep[:status] = true
 	 	elsif type==8
-	 		puts "Error, restart program"
+	 		rep[:error] = true
 	 	else
 	 		puts "Unknown response"
 	 	end
 
-	 end
+	 	return rep
 
+	 end
 
 	  def listen
 		@sp.readline(sep="\r")
 	  end
 
 	  def init
-			puts "init"
-			@cmd_queue.push(cmd_str(0,FLUSH))
-			@cmd_queue.push(cmd_str(1,FLUSH))
-			puts "Initialising pump valves"
-			@cmd_queue.push(cmd_str(0,INITIALIZE_VALVE))
-			@cmd_queue.push(cmd_str(1,INITIALIZE_VALVE))
-			puts "Initialising syringes"
-			@cmd_queue.push(cmd_str(0,INITIALIZE_SYRINGE))
-			@cmd_queue.push(cmd_str(1,INITIALIZE_SYRINGE))
+	  		## contains startup writes
+			puts "Initialising pump ..."
+			@cmd_queue_0.push(FLUSH)
+			@cmd_queue_1.push(FLUSH)
+			@cmd_queue_0.push(INITIALIZE_VALVE)
+			@cmd_queue_1.push(INITIALIZE_VALVE)
+			@cmd_queue_0.push(INITIALIZE_SYRINGE)
+			@cmd_queue_1.push(INITIALIZE_SYRINGE)
+
+			#separate init process start
+	  		while !@cmd_queue_0.empty? do
+	  			write(@cmd_queue_0.shift)
+	  			str = listen
+	  			rep = parse_response(str)
+	  			puts rep
+	  		end
+
+	  		while !@cmd_queue_1.empty? do
+	  			write(@cmd_queue_1.shift)
+	  			str = listen
+	  			rep = parse_response(str)
+	  			puts rep
+	  		end
+
+	  		sleep(1)
+	  		puts "Pump initialised"
 	  end
 
 	  def status
-	  		@cmd_queue.push(cmd_str(0,STATUS))
-	  		@cmd_queue.push(cmd_str(1,STATUS))
-	  end
-
-	  def pump_command(address,request)
-	 		write(address,request)
+	  		@cmd_queue_0.push(STATUS)
+	  		@cmd_queue_1.push(STATUS)
 	  end
 
 	  def write(cmd)
 		 	@sp.write(cmd)
 		 	sleep(0.25)
-	  end
-
-	  def cmd_str(address,request)
-	  		header = "$0"
-	  		header+address.to_s+request+"\r"
 	  end
 
 	  def flush_input
@@ -136,48 +253,37 @@ module Mitos
 
 	  def fill_syringe(address)
 	 	cmd = [MOVE_SYRINGE_POS,ZERO_POSITION].join(" ")
-	 	@cmd_queue.push(command_str(address,cmd))
+	 	@cmd_queue.push(cmd)
 	 end
 
 	 def set_rate(address,rate)
 	 	pos = rate*ZERO_POSITION/SYRINGE_SIZE
 	 	cmd = [SET_PUMP_RATE,pos].join(" ")
-	 	@cmd_queue.push(command_str(address,cmd))
+	 	@cmd_queue.push(cmd)
 	 end
 
-	 def set_port(address,position)
-
+    def set_port(address,position)
 	 	# check that the port is ready
-
+	 	# check the address is suitable
+	 	queue = eval "@cmd_queue_#{address}"
 	 	case position
 	 	when "A"
 	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_A].join(" ")
-	 		@cmd_queue.push(command_str(address,cmd))
+	 		queue.push(cmd)
 	 	when "B"
-
 	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_B].join(" ")
-	 		@cmd_queue.push(command_str(address,cmd))
+	 		queue.push(cmd)
 	 	when "C"
 	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_C].join(" ")
-			@cmd_queue.push(command_str(address,cmd))
+			queue.push(cmd)
 	 	when "D"
 	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_D].join(" ")
-	 		@cmd_queue.push(command_str(address,cmd))
+	 		queue.push(cmd)
 	 	else
 	 		puts "#{position} is not a valid port setting for this pump"
 	 	end
 	 end
 	
-	end
-
-	#rep classes - might use later on 
-	class Injector
-	end
-
-	class Syringe
-	end
-
-	class Valve
 	end
 
 end
@@ -188,11 +294,12 @@ end
 #main process will run through the queue
 
 pump = Mitos::XsDuoBasic.new("COM1")
-pump.init
-pump.status
+
+pump.set_port(0,"A")
 
 # we are done with commands, run the commands!
 pump.run
+
 
 
 
