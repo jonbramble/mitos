@@ -42,12 +42,90 @@ module Mitos
 
 		#rep classes - might use later on 
 	class Injector
+		def initialize(address)
+			@address = address
+			@valve = Valve.new(address)
+			@syringe = Syringe.new(address)
+		end
+
+		def address
+			@address
+		end
+
+		def valve
+			@valve
+		end
+
+		def syringe
+			@syringe
+		end
 	end
 
 	class Syringe
+
+		SET_PUMP_RATE = "E2 3"
+     	MOVE_SYRINGE_POS = "E2 1"
+     	SET_POSITION = "I3"
+
+     	ZERO_POSITION = 30000
+
+     	# hard code syringe sizes for now
+      	SYRINGE_SIZE = 2500
+
+		def initialize(address)
+			@address = address
+		end
+
+		def address
+			@address
+		end
+
+		def fill_syringe(address)
+	 		cmd = [MOVE_SYRINGE_POS,ZERO_POSITION].join(" ")
+	 		@cmd_queue.push(cmd)
+	 	end
+
+	 	def set_rate(address,rate)
+	 		pos = rate*ZERO_POSITION/SYRINGE_SIZE
+	 		cmd = [SET_PUMP_RATE,pos].join(" ")
+	 		@cmd_queue.push(cmd)
+	 	end
 	end
 
 	class Valve
+
+		MOVE_VALVE_POS = "E2 2"
+
+      	FOUR_PORT_A = "0"
+      	FOUR_PORT_B = "6"
+      	FOUR_PORT_C = "12"
+      	FOUR_PORT_D = "18"
+
+		def initialize(address)
+			@address = address
+		end
+
+		def address
+			@address
+		end
+
+		def set_port(position)
+			case position
+	 		when "A"
+	 		 cmd = [MOVE_VALVE_POS,FOUR_PORT_A].join(" ")		
+	 		when "B"
+	 		 cmd = [MOVE_VALVE_POS,FOUR_PORT_B].join(" ")
+	 		when "C"
+	 		 cmd = [MOVE_VALVE_POS,FOUR_PORT_C].join(" ")
+	 		when "D"
+	 		 cmd = [MOVE_VALVE_POS,FOUR_PORT_D].join(" ")
+	 		else
+	 		 puts "#{position} is not a valid port setting for this pump"
+	 		end
+	 		return cmd
+		end
+
+
 	end
 
 
@@ -58,29 +136,20 @@ module Mitos
       INITIALIZE_VALVE = "I2"
       STATUS = "S3"
       FLUSH = "F"
-      SET_POSITION = "I3"
+
       STOP = "X"
-      SET_PUMP_RATE = "E2 3"
-      MOVE_SYRINGE_POS = "E2 1"
-      MOVE_VALVE_POS = "E2 2"
-
-      FOUR_PORT_A = "0"
-      FOUR_PORT_B = "6"
-      FOUR_PORT_C = "12"
-      FOUR_PORT_D = "18"
-
+      
       MYSTERY_V = "V"
-
-      ZERO_POSITION = 30000
-
-      # hard code syringe sizes for now
-      SYRINGE_SIZE = 2500
 
 	  def initialize(port)
 		@portname = port || "COM1"
 		@sp = SerialPort.new(@portname,9600,8,1)
 		@cmd_queue_0 = CommandQueue.new(0)
 		@cmd_queue_1 = CommandQueue.new(1)
+
+		@injector_0 = Injector.new(0)
+		@injector_1 = Injector.new(1)
+
 		init # adds startup sequence commands to queue
 	  end
 
@@ -103,7 +172,8 @@ module Mitos
 	  			break
 	  		end
 
-	  		#start with queue 0 - how to I switch about?
+	  		#start with queue 0 - how to I switch about between queues?
+
 	  		cmd = @cmd_queue_0.shift
 	  		puts "-> #{cmd}"
 	  		write(cmd)
@@ -129,7 +199,21 @@ module Mitos
 	  		# Is it a status message
 	  		# Yes
 	  		if rep[:status]
-	  			address = rep[:address]
+	  			process_status(rep)
+	  		# No
+	  		elsif !rep[:status]
+	  			process_command(rep)
+	  		else
+	  			puts "unknown message type"
+	  		end
+	  	end
+	  	puts "...command queue complete"
+
+	  
+	  end
+
+	   def process_status(rep)
+	   			address = rep[:address]
 	  			#need to process queue for that address
 	  			
 	  			if address==1
@@ -148,33 +232,34 @@ module Mitos
 	  				pending = queue.first
 	  				puts pending
 	  			end
+	   end
 
-	  		# No
-	  		elsif !rep[:status]
-	  			case rep[:type]
+
+	   def process_command(rep)
+	   		address = rep[:address]
+
+	   		if address==1
+	  			queue = @cmd_queue_1
+	  		else
+	  			queue = @cmd_queue_0
+	  		end
+
+	   		case rep[:type]
 	  			when 0
 	  				puts "OK"
-	  				@cmd_queue_0.push(STATUS)
+	  				queue.push(STATUS)
 	  			when 1
 	  				puts "Invalid Command"
-	  				@cmd_queue_0.push(STATUS)
+	  				queue.push(STATUS)
 	  			when 2
 	  				puts "Busy - command ignored"
-	  				@cmd_queue_0.push(STATUS)
+	  				queue.push(STATUS)
 	  			when 3
 	  				puts "Can't Process - input out of range or error"
-	  				@cmd_queue_0.push(STATUS)
+	  				queue.push(STATUS)
 	  			end
-	  		else
-	  			puts "unknown message type"
-	  		end
-	  	end
-	  	puts "...command queue complete"
 
-	  
-	  end
-
-
+	   end
 
 	   def parse_response(str)
 	 	# check the input is of the correct format - regexp
@@ -251,37 +336,30 @@ module Mitos
 	 		sleep(1)
 	  end
 
+
+	  def set_rate(address,rate)
+	  	injector = eval "@injector_#{address}"
+	  	cmd = injector.syringe.set_rate(rate)
+	  	write_to_queue(address,cmd)
+	  end
+
 	  def fill_syringe(address)
-	 	cmd = [MOVE_SYRINGE_POS,ZERO_POSITION].join(" ")
-	 	@cmd_queue.push(cmd)
+	  	injector = eval "@injector_#{address}"
+	  	cmd = injector.syringe.fill_syringe
+	  	write_to_queue(address,cmd)
+	  end
+
+      def set_port(address,position)
+	 	
+	 	injector = eval "@injector_#{address}"
+	 	cmd = injector.valve.set_port(position)
+	 	write_to_queue(address,cmd)
 	 end
 
-	 def set_rate(address,rate)
-	 	pos = rate*ZERO_POSITION/SYRINGE_SIZE
-	 	cmd = [SET_PUMP_RATE,pos].join(" ")
-	 	@cmd_queue.push(cmd)
-	 end
-
-    def set_port(address,position)
-	 	# check that the port is ready
-	 	# check the address is suitable
+	 def write_to_queue(address,cmd)
+	 	# check the address is 'suitable'
 	 	queue = eval "@cmd_queue_#{address}"
-	 	case position
-	 	when "A"
-	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_A].join(" ")
-	 		queue.push(cmd)
-	 	when "B"
-	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_B].join(" ")
-	 		queue.push(cmd)
-	 	when "C"
-	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_C].join(" ")
-			queue.push(cmd)
-	 	when "D"
-	 		cmd = [MOVE_VALVE_POS,FOUR_PORT_D].join(" ")
-	 		queue.push(cmd)
-	 	else
-	 		puts "#{position} is not a valid port setting for this pump"
-	 	end
+	  	queue.push(cmd)
 	 end
 	
 	end
