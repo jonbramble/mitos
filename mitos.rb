@@ -1,8 +1,12 @@
 require 'serialport'
+require_relative 'injector'
+
 
 module Mitos
 
 	class CommandQueue
+
+		attr_reader :address
 
 		def initialize(address)
 			@address = address
@@ -30,104 +34,13 @@ module Mitos
 			@q.first
 		end
 
-		def address
-			@address
-		end
+	private
 
 		def cmd_str(address,request)
 	  		header = "$0"
 	  		header+address.to_s+request+"\r"
 	  	end
 	end
-
-		#rep classes - might use later on 
-	class Injector
-		def initialize(address)
-			@address = address
-			@valve = Valve.new(address)
-			@syringe = Syringe.new(address)
-		end
-
-		def address
-			@address
-		end
-
-		def valve
-			@valve
-		end
-
-		def syringe
-			@syringe
-		end
-	end
-
-	class Syringe
-
-		SET_PUMP_RATE = "E2 3"
-     	MOVE_SYRINGE_POS = "E2 1"
-     	SET_POSITION = "I3"
-
-     	ZERO_POSITION = 30000
-
-     	# hard code syringe sizes for now
-      	SYRINGE_SIZE = 2500
-
-		def initialize(address)
-			@address = address
-		end
-
-		def address
-			@address
-		end
-
-		def fill_syringe(address)
-	 		cmd = [MOVE_SYRINGE_POS,ZERO_POSITION].join(" ")
-	 		@cmd_queue.push(cmd)
-	 	end
-
-	 	def set_rate(address,rate)
-	 		pos = rate*ZERO_POSITION/SYRINGE_SIZE
-	 		cmd = [SET_PUMP_RATE,pos].join(" ")
-	 		@cmd_queue.push(cmd)
-	 	end
-	end
-
-	class Valve
-
-		MOVE_VALVE_POS = "E2 2"
-
-      	FOUR_PORT_A = "0"
-      	FOUR_PORT_B = "6"
-      	FOUR_PORT_C = "12"
-      	FOUR_PORT_D = "18"
-
-		def initialize(address)
-			@address = address
-		end
-
-		def address
-			@address
-		end
-
-		def set_port(position)
-			case position
-	 		when "A"
-	 		 cmd = [MOVE_VALVE_POS,FOUR_PORT_A].join(" ")		
-	 		when "B"
-	 		 cmd = [MOVE_VALVE_POS,FOUR_PORT_B].join(" ")
-	 		when "C"
-	 		 cmd = [MOVE_VALVE_POS,FOUR_PORT_C].join(" ")
-	 		when "D"
-	 		 cmd = [MOVE_VALVE_POS,FOUR_PORT_D].join(" ")
-	 		else
-	 		 puts "#{position} is not a valid port setting for this pump"
-	 		end
-	 		return cmd
-		end
-
-
-	end
-
 
 	class XsDuoBasic
 
@@ -212,30 +125,56 @@ module Mitos
 	  
 	  end
 
-	   def process_status(rep)
-	   			address = rep[:address]
+	  def status
+	  		@cmd_queue_0.push(STATUS)
+	  		@cmd_queue_1.push(STATUS)
+	  end
+
+	  def set_rate(address,rate)
+	  	injector = eval "@injector_#{address}"
+	  	cmd = injector.syringe.set_rate(rate)
+	  	write_to_queue(address,cmd)
+	  end
+
+	  def fill_syringe(address)
+	  	injector = eval "@injector_#{address}"
+	  	cmd = injector.syringe.fill_syringe
+	  	write_to_queue(address,cmd)
+	  end
+
+      def set_port(address,position)
+	 	
+	 	injector = eval "@injector_#{address}"
+	 	cmd = injector.valve.set_port(position)
+	 	write_to_queue(address,cmd)
+	 end
+
+private
+
+	def process_status(rep)
+	   	address = rep[:address]
 	  			#need to process queue for that address
 	  			
-	  			if address==1
-	  				queue = @cmd_queue_1
-	  				other_queue = @cmd_queue_0
-	  			else
-	  				queue = @cmd_queue_0
-	  				other_queue = @cmd_queue_1
-	  			end
+	  	if address==1
+	  		queue = @cmd_queue_1
+	  		other_queue = @cmd_queue_0
+	  	else
+	  		queue = @cmd_queue_0
+	  		other_queue = @cmd_queue_1
+	  	end
 
-				#command pending?
-	  			#No
-	  			if queue.empty?
-	  				other_queue.push(STATUS)
-	  			else 
-	  				pending = queue.first
-	  				puts pending
-	  			end
+		#command pending?
+	  	#No
+	  	if queue.empty?
+	  		other_queue.push(STATUS)
+	  	else 
+	  		pending = queue.first
+	  		puts "pending" + pending
+	  	end
 	   end
 
 
-	   def process_command(rep)
+	 def process_command(rep)
 	   		address = rep[:address]
 
 	   		if address==1
@@ -259,9 +198,9 @@ module Mitos
 	  				queue.push(STATUS)
 	  			end
 
-	   end
+	 end
 
-	   def parse_response(str)
+	 def parse_response(str)
 	 	# check the input is of the correct format - regexp
 	 	res = str.split(" ")
 	 	header = res[0].split("")
@@ -288,78 +227,60 @@ module Mitos
 
 	 end
 
-	  def listen
+	 def listen
 		@sp.readline(sep="\r")
-	  end
+	 end
 
-	  def init
+	 def init
 	  		## contains startup writes
-			puts "Initialising pump ..."
-			@cmd_queue_0.push(FLUSH)
-			@cmd_queue_1.push(FLUSH)
-			@cmd_queue_0.push(INITIALIZE_VALVE)
-			@cmd_queue_1.push(INITIALIZE_VALVE)
-			@cmd_queue_0.push(INITIALIZE_SYRINGE)
-			@cmd_queue_1.push(INITIALIZE_SYRINGE)
+		puts "Initialising pump ..."
+
+		#flush comms
+		write_to_queue(0,FLUSH)
+		write_to_queue(1,FLUSH)
+		write(@cmd_queue_0.shift)
+		write(@cmd_queue_1.shift)
+
+		flush_input
+
+		write_to_queue(0,INITIALIZE_VALVE)
+		write_to_queue(1,INITIALIZE_VALVE)
+		write_to_queue(0,INITIALIZE_SYRINGE)
+		write_to_queue(1,INITIALIZE_SYRINGE)
 
 			#separate init process start
-	  		while !@cmd_queue_0.empty? do
-	  			write(@cmd_queue_0.shift)
-	  			str = listen
-	  			rep = parse_response(str)
-	  			puts rep
-	  		end
+	  	while !@cmd_queue_0.empty? do
+	  		write(@cmd_queue_0.shift)
+	  		str = listen
+	  		rep = parse_response(str)
+	  		puts rep
+	  	end
 
-	  		while !@cmd_queue_1.empty? do
-	  			write(@cmd_queue_1.shift)
-	  			str = listen
-	  			rep = parse_response(str)
-	  			puts rep
-	  		end
+	  	while !@cmd_queue_1.empty? do
+	  		write(@cmd_queue_1.shift)
+	  		str = listen
+	  		rep = parse_response(str)
+	  		puts rep
+	  	end
 
-	  		sleep(1)
-	  		puts "Pump initialised"
-	  end
-
-	  def status
-	  		@cmd_queue_0.push(STATUS)
-	  		@cmd_queue_1.push(STATUS)
-	  end
-
-	  def write(cmd)
-		 	@sp.write(cmd)
-		 	sleep(0.25)
-	  end
-
-	  def flush_input
-	 		@sp.flush_input
-	 		sleep(1)
-	  end
-
-
-	  def set_rate(address,rate)
-	  	injector = eval "@injector_#{address}"
-	  	cmd = injector.syringe.set_rate(rate)
-	  	write_to_queue(address,cmd)
-	  end
-
-	  def fill_syringe(address)
-	  	injector = eval "@injector_#{address}"
-	  	cmd = injector.syringe.fill_syringe
-	  	write_to_queue(address,cmd)
-	  end
-
-      def set_port(address,position)
-	 	
-	 	injector = eval "@injector_#{address}"
-	 	cmd = injector.valve.set_port(position)
-	 	write_to_queue(address,cmd)
+	  	sleep(1)
+	  	puts "Pump initialised"
 	 end
 
 	 def write_to_queue(address,cmd)
 	 	# check the address is 'suitable'
 	 	queue = eval "@cmd_queue_#{address}"
 	  	queue.push(cmd)
+	 end
+
+	 def write(cmd)
+		 @sp.write(cmd)
+		 sleep(0.25)
+	 end
+
+	 def flush_input
+	 	@sp.flush_input
+	 	sleep(1)
 	 end
 	
 	end
@@ -373,7 +294,10 @@ end
 
 pump = Mitos::XsDuoBasic.new("COM1")
 
-pump.set_port(0,"A")
+#pump.set_port(0,"A")
+#pump.set_port(1,"D")
+
+#pump.set_rate(0,1000);
 
 # we are done with commands, run the commands!
 pump.run
