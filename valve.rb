@@ -1,7 +1,8 @@
 module Mitos
 	class Valve
 
-		attr_reader :address 
+		attr_reader :address
+		attr_accessor :initialised, :position, :motor
 
 		MOVE_VALVE_POS = "E2 2"
 
@@ -12,10 +13,13 @@ module Mitos
 
 		def initialize(address)
 			@address = address
+			@initialised = false
+			@position = "A"
+			@motor = 0
 		end
 
-		def set_port(position)
-			case position
+		def set_port(letter)
+			case letter
 	 		when "A"
 	 		 cmd = [MOVE_VALVE_POS,FOUR_PORT_A].join(" ")		
 	 		when "B"

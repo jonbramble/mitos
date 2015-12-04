@@ -1,9 +1,9 @@
 module Mitos
 	class Syringe
-
-		attr_accessor :position, :motor
-		attr_reader :address 
-
+  
+  		attr_reader :address 
+		attr_accessor :position, :motor, :initialised
+		
 		SET_PUMP_RATE = "E2 3"
      	MOVE_SYRINGE_POS = "E2 1"
      	SET_POSITION = "I3"
