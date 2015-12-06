@@ -35,7 +35,7 @@ module Mitos
 		end
 
 		def status
-			#return status info about valve state
+			{address: @address}
 		end
 
 
