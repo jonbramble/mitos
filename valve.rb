@@ -6,10 +6,10 @@ module Mitos
 
 		MOVE_VALVE_POS = "E2 2"
 
-      	FOUR_PORT_A = "0"
-      	FOUR_PORT_B = "6"
-      	FOUR_PORT_C = "12"
-      	FOUR_PORT_D = "18"
+      		FOUR_PORT_A = "0"
+      		FOUR_PORT_B = "6"
+      		FOUR_PORT_C = "12"
+      		FOUR_PORT_D = "18"
 
 		def initialize(address)
 			@address = address

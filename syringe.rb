@@ -5,13 +5,13 @@ module Mitos
 		attr_accessor :position, :motor, :initialised
 		
 		SET_PUMP_RATE = "E2 3"
-     	MOVE_SYRINGE_POS = "E2 1"
-     	SET_POSITION = "I3"
+     		MOVE_SYRINGE_POS = "E2 1"
+     		SET_POSITION = "I3"
 
-     	ZERO_POSITION = 30000
+     		ZERO_POSITION = 30000
 
-     	# hard code syringe sizes for now
-      	SYRINGE_SIZE = 2500
+     		# hard code syringe sizes for now
+      		SYRINGE_SIZE = 2500
 
 		def initialize(address)
 			@address = address
