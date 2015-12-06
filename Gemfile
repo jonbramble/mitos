@@ -1,5 +1,4 @@
 source 'https://rubygems.org'
 
-gem 'serialport'
-#gem 'serialport', :platform => :mswin
-gem 'rspec'
+# Specify your gem's dependencies in mitos.gemspec
+gemspec

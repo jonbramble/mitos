@@ -1,11 +1,8 @@
 require 'serialport'
-require 'pp'
-require_relative 'injector'
-
 
 module Mitos
 
-	class XsDuoBasic
+     class XsDuoBasic
 
 	  ## COMMANDS ##
       INITIALIZE_SYRINGE = "I1"
@@ -318,12 +315,11 @@ end
 #pump.set_port(0,"B")
 #pump.set_rate(0,1000)
 
-
-pump.set_port(1,"B")
-pump.set_rate(1,1500)
+#pump.set_port(1,"B")
+#pump.set_rate(1,1500)
 
 # we are done with commands, run the commands!
-pump.run
+#pump.run
 
 
 

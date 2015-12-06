@@ -1,4 +1,4 @@
-require './command_queue.rb'
+require 'spec_helper'
 
 RSpec.describe Mitos::CommandQueue do
 context "queue" do
@@ -87,12 +87,6 @@ describe "#unshift" do
   expect(@cmd_queue.subscribe).to eq(str)
  end
 end
-
-
-
- 
- 
-
 
 end
 
