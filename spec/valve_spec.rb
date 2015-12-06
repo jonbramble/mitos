@@ -33,6 +33,28 @@ context "set port" do
  end
 
 end
+
+context "status message" do
+   
+ before(:each) do
+  @address= 0
+  @v = Mitos::Valve.new(@address)
+ end
+ describe "#status" do
+	it "returns the correct address in status hash" do
+		expect(@v.status[:address]).to eq(@address)
+	end
+
+	it "returns the correct position in status hash" do
+		expect(@v.status[:position]).to eq("A")
+	end
+
+	it "returns the correct motor in status hash" do
+		expect(@v.status[:motor]).to eq(0)
+	end
+ end
+
+end
  
 
 
