@@ -5,49 +5,6 @@ require_relative 'injector'
 
 module Mitos
 
-	class CommandQueue
-
-		attr_reader :address
-
-		def initialize(address)
-			@address = address
-			@q = Array.new
-		end
-
-		def push(request)
-			command = cmd_str(@address,request)
-			@q.push(command)
-		end
-
-		def shift
-			@q.shift
-		end
-
-		def unshift(val)
-			command = cmd_str(@address,val)
-			@q.unshift(command)
-		end
-
-		def each
-			@q.each
-		end
-
-		def empty?
-			@q.empty?
-		end
-
-		def first
-			@q.first
-		end
-
-	private
-
-		def cmd_str(address,request)
-	  		header = "$0"
-	  		header+address.to_s+request+"\r"
-	  	end
-	end
-
 	class XsDuoBasic
 
 	  ## COMMANDS ##
@@ -356,10 +313,10 @@ end
 #process the command queue, waiting appropriately for the pumps and valves to move by monitoring the status signals
 #main process will run through the queue
 
-pump = Mitos::XsDuoBasic.new("COM1")
+#pump = Mitos::XsDuoBasic.new("COM1")
 
-pump.set_port(0,"B")
-pump.set_rate(0,1000)
+#pump.set_port(0,"B")
+#pump.set_rate(0,1000)
 
 
 pump.set_port(1,"B")

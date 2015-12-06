@@ -1,3 +1,5 @@
 source 'https://rubygems.org'
 
-gem 'serialport', :platform => :mswin
+gem 'serialport'
+#gem 'serialport', :platform => :mswin
+gem 'rspec'
