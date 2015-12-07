@@ -8,27 +8,31 @@ context "set port" do
   @v = Mitos::Valve.new(@address)
  end
 
- describe "#set_port to A" do
+ describe "#get_port_cmd to A" do
   it "forms the correct command string" do
-   expect(@v.set_port("A")).to eq("E2 2 0")
+   @v.position = "A"
+   expect(@v.get_port_cmd).to eq("E2 2 0")
   end
  end
 
- describe "#set_port to B" do
+ describe "#get_port_cmd to B" do
    it "forms the correct command string" do
-   expect(@v.set_port("B")).to eq("E2 2 6")
+    @v.position = "B"
+   expect(@v.get_port_cmd).to eq("E2 2 6")
   end
  end
 
- describe "#set_port to C" do
+ describe "#get_port_cmd to C" do
    it "forms the correct command string" do
-   expect(@v.set_port("C")).to eq("E2 2 12")
+    @v.position = "C"
+   expect(@v.get_port_cmd).to eq("E2 2 12")
   end
  end
 
- describe "#set_port to D" do
+ describe "#get_port_cmd to D" do
    it "forms the correct command string" do
-   expect(@v.set_port("D")).to eq("E2 2 18")
+    @v.position = "D"
+   expect(@v.get_port_cmd).to eq("E2 2 18")
   end
  end
 
@@ -48,6 +52,11 @@ context "status message" do
 	it "returns the correct position in status hash" do
 		expect(@v.status[:position]).to eq("A")
 	end
+
+  it "returns the correct position in status hash after change" do
+    @v.position = "B"
+    expect(@v.status[:position]).to eq("B")
+  end
 
 	it "returns the correct motor in status hash" do
 		expect(@v.status[:motor]).to eq(0)
