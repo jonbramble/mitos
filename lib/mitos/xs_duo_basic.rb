@@ -1,4 +1,4 @@
-require 'serialport'
+require 'rubyserial'
 
 module Mitos
 
@@ -17,7 +17,7 @@ module Mitos
 	  def initialize(port)
 		# might have to load in the port from another module
 		@portname = port || "COM1"
-		@sp = SerialPort.new(@portname,9600,8,1)
+		@sp = Serial.new(@portname,9600,8)
 
 		@cmd_queue_0 = CommandQueue.new(0)
 		@cmd_queue_1 = CommandQueue.new(1)
@@ -39,30 +39,16 @@ module Mitos
 	  	#check that the ret valves are good to go
 
 	  	#ensures that the queue is not empty for event loop
-		status
+		#status
 	  	
-	  	#pp @cmd_queue_0.inspect
-	  	#pp @cmd_queue_1.inspect
-
 	  	queue = @cmd_queue_0
 	  	other_queue = @cmd_queue_1
 
+	  	write_command_status(queue)
+	  	
+
 	  	puts "processing command queue..."
 	  	loop do
-	  		#break out if queues are complete
-	  		if @cmd_queue_0.empty? && @cmd_queue_1.empty?
-	  			break
-	  		end
-
-	  		#start with queue 0 - how to I switch about between queues?
-	  		# alternate? - may not need this if we have exe commands in flow ??
-
-	  		if !queue.empty?
-	  			cmd = queue.shift[:cmd]
-	  			puts "-> #{cmd}"
-	  			write(cmd)
-	  		end
-
 	  		begin
 	  			str = listen
 	  		rescue EOFError
@@ -74,9 +60,7 @@ module Mitos
 	  			break
 	  		end
 
-	  		puts "<- #{str}"
 	  		rep = parse_response(str)
-	  		#puts rep
 
 	  		# look at command response and wait or proceed on queue
 
@@ -90,15 +74,9 @@ module Mitos
 	  		else
 	  			puts "unknown message type"
 	  		end
-
-	  		## swap queues 
-	  		tmp_queue = queue
-	  		queue = other_queue
-	  		other_queue = tmp_queue
 	  	end
 	  	puts "...command queue complete"
 
-	  
 	  end
 
 	  def status
@@ -108,7 +86,8 @@ module Mitos
 
 	  def set_rate(address,rate)
 	  	injector = eval "@injector_#{address}"
-	  	cmd = injector.syringe.set_rate(rate)
+	  	injector.syringe.rate = rate
+	  	cmd = injector.syringe.get_rate_cmd
 	  	write_to_queue(address,cmd)
 	  end
 
@@ -119,9 +98,9 @@ module Mitos
 	  end
 
       def set_port(address,position)
-	 	
 	 	injector = eval "@injector_#{address}"
-	 	cmd = injector.valve.set_port(position)
+	 	injector.valve.position = position
+	 	cmd = injector.valve.get_port_cmd
 	 	write_to_queue(address,cmd)
 	 end
 
@@ -129,7 +108,7 @@ private
 
 	def process_status(rep)
 	   	address = rep[:address]
-	  			#need to process queue for that address
+	  	#need to process queue for that address
 	  			
 	  	if address==1
 	  		queue = @cmd_queue_1
@@ -152,37 +131,36 @@ private
 	  	#No
 	  	if queue.empty?
 	  		puts "queue empty"
-	  		other_queue.push(STATUS)
+	  		write_command_status(other_queue)
 	  	else 
 	  		pending = queue.first
 	  		mov = parse_command(pending)
 	  		if mov
+	  			puts "mov command"
+	  			puts injector.valve.motor
+	  			puts injector.syringe.motor
 	  			if(injector.valve.motor == 1  && injector.syringe.motor == 1)
+	  			 puts "Motors idle"
 	  			 cmd = queue.shift[:cmd]
 	  			 write(cmd)
 	  			else
 	  			 puts "Motors still moving"
-	  			 other_queue.push(STATUS)
+	  			 write_command_status(other_queue)
 	  			end
-	  		  else
+	  		else
 	  		  	cmd = queue.shift[:cmd]
 	  			write(cmd)
-	  		  end
+	  		end
 	  	end
-	   end
+	  end
 
 	  def parse_command(cmd)
-	  	# reverse the command type! 
-	  	res = cmd.split(" ")
-	 	header = res[0].split("")
-	 	type = header[3]
-	 	# needs to look at next value if it is present as E2 3 is not a moving
-	 	if ["E","I"].include?(type)
-	 		ret = true
-	 	end
-	 	#puts type
-	 	#puts ret
-	 	return ret
+	  	ret = false
+	  	req = cmd[:request].split(" ")
+	  	if ["E2","I3"].include?(req[0])
+	  		ret = true
+	  	end
+	  	return ret
 	  end
 
 	 def process_command(rep)
@@ -194,21 +172,24 @@ private
 	  			queue = @cmd_queue_0
 	  		end
 
-	   		case rep[:type].to_i
+	   		case rep[:type]
 	  			when 0
-	  				puts "OK"
-	  				queue.push(STATUS)
+	  				puts "Command OK"
 	  			when 1
-	  				puts "Invalid Command"
-	  				queue.push(STATUS)
+	  				puts "Invalid Command"	
 	  			when 2
-	  				puts "Busy - command ignored"
-	  				queue.push(STATUS)
+	  				puts "Busy - command ignored"		
 	  			when 3
 	  				puts "Can't Process - input out of range or error"
-	  				queue.push(STATUS)
+	  				
 	  		end
+	  		write_command_status(queue)
+	 end
 
+	 def write_command_status(queue) 
+	 	queue.unshift(STATUS)
+	  	cmd = queue.shift[:cmd]
+	  	write(cmd)
 	 end
 
 	 def parse_response(str)
@@ -219,7 +200,7 @@ private
 
 	 	address = header[2]
 	 	
-	 	rep = {address: address, error: :false, type: res[1]}	# response hash
+	 	rep = {address: address.to_i, error: :false, type: res[1].to_i}	# response hash
 
 	 	#for testing
 	 	
@@ -228,10 +209,10 @@ private
 	 		rep[:status] = false
 	 	elsif type==9
 	 		rep[:status] = true
-	 		rep[:syringe_motor] = res[1]
-	 		rep[:valve_motor] = res[2]
-	 		rep[:syringe_position] = res[3]
-	 		rep[:valve_position] = res[4]
+	 		rep[:syringe_motor] = res[1].to_i
+	 		rep[:valve_motor] = res[2].to_i
+	 		rep[:syringe_position] = res[3].to_i
+	 		rep[:valve_position] = res[4].to_i
 	 	elsif type==8
 	 		rep[:error] = true
 	 	else
@@ -243,7 +224,9 @@ private
 	 end
 
 	 def listen
-		@sp.readline(sep="\r")
+		rec = @sp.gets(sep="\r")
+		puts "<- " + rec
+		return rec
 	 end
 
 	 def init
@@ -253,8 +236,8 @@ private
 		#flush comms
 		write_to_queue(0,FLUSH)
 		write_to_queue(1,FLUSH)
-		write(@cmd_queue_0.shift)
-		write(@cmd_queue_1.shift)
+		write(@cmd_queue_0.shift[:cmd])
+		write(@cmd_queue_1.shift[:cmd])
 
 		flush_input
 
@@ -294,12 +277,15 @@ private
 	 end
 
 	 def write(cmd)
+	 	 puts "-> "+ cmd
 		 @sp.write(cmd)
 		 sleep(0.25)
 	 end
 
 	 def flush_input
-	 	@sp.flush_input
+	 	#@sp.flush_input
+	 	@sp.read(7)
+	 	@sp.read(7)
 	 	sleep(1)
 	 end
 	

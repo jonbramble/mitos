@@ -2,12 +2,13 @@ PATH
   remote: .
   specs:
     mitos (0.1.0)
-      serialport
+      rubyserial
 
 GEM
   remote: https://rubygems.org/
   specs:
     diff-lcs (1.2.5)
+    ffi (1.9.10-x86-mingw32)
     rake (10.4.2)
     rspec (3.4.0)
       rspec-core (~> 3.4.0)
@@ -22,10 +23,11 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.4.0)
     rspec-support (3.4.1)
-    serialport (1.3.1)
+    rubyserial (0.2.4)
+      ffi (~> 1.9.3)
 
 PLATFORMS
-  ruby
+  x86-mingw32
 
 DEPENDENCIES
   bundler (~> 1.10)
