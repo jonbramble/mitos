@@ -43,8 +43,8 @@ end
   it "access first element of internal array" do
    @cmd_queue.push("A")
    str = "$0#{@address}A\r"
-   expect(@cmd_queue.first).to eq(str)
-   expect { @cmd_queue.first }.not_to change{@cmd_queue.size}
+   expect(@cmd_queue.first[:cmd]).to eq(str)
+   expect { @cmd_queue.first[:cmd] }.not_to change{@cmd_queue.size}
  end
 end
 
@@ -62,9 +62,9 @@ describe "#subscribe" do
 
   it "removes the first element from the array" do
    str = "$0#{@address}A\r"
-   expect(@cmd_queue.subscribe).to eq(str)
+   expect(@cmd_queue.subscribe[:cmd]).to eq(str)
    str = "$0#{@address}B\r"
-   expect(@cmd_queue.subscribe).to eq(str)
+   expect(@cmd_queue.subscribe[:cmd]).to eq(str)
  end
 
  it "changes the size of the array" do
@@ -84,7 +84,7 @@ describe "#unshift" do
   @cmd_queue.push("A")
   @cmd_queue.unshift("B")
   str = "$0#{@address}B\r"
-  expect(@cmd_queue.subscribe).to eq(str)
+  expect(@cmd_queue.subscribe[:cmd]).to eq(str)
  end
 end
 

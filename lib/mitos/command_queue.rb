@@ -10,7 +10,12 @@ module Mitos
 
 		def push(request)
 			command = cmd_str(request)
-			@q.push(command)
+			command_entry = entry(command,request)
+			@q.push(command_entry)
+		end
+
+		def entry(command,request)
+			{cmd: command, address: @address, request: request, time_stamp: Time.now}
 		end
 
 		def shift
@@ -25,14 +30,11 @@ module Mitos
 			@q.shift
 		end
 
-		def unshift(val)
-			command = cmd_str(val)
-			@q.unshift(command)
+		def unshift(request)
+			command = cmd_str(request)
+			command_entry = entry(command,request)
+			@q.unshift(command_entry)
 		end
-
-		#def each
-		#	@q.each
-		#end
 
 		def empty?
 			@q.empty?

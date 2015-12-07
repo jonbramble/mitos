@@ -15,16 +15,18 @@ module Mitos
       MYSTERY_V = "V"
 
 	  def initialize(port)
+		# might have to load in the port from another module
 		@portname = port || "COM1"
 		@sp = SerialPort.new(@portname,9600,8,1)
 
-		#could have a command queue array
 		@cmd_queue_0 = CommandQueue.new(0)
 		@cmd_queue_1 = CommandQueue.new(1)
 
 		@injector_0 = Injector.new(0)
 		@injector_1 = Injector.new(1)
+	  end
 
+	  def start
 		init # adds startup sequence commands to queue
 	  end
 
@@ -56,7 +58,7 @@ module Mitos
 	  		# alternate? - may not need this if we have exe commands in flow ??
 
 	  		if !queue.empty?
-	  			cmd = queue.shift
+	  			cmd = queue.shift[:cmd]
 	  			puts "-> #{cmd}"
 	  			write(cmd)
 	  		end
@@ -156,14 +158,14 @@ private
 	  		mov = parse_command(pending)
 	  		if mov
 	  			if(injector.valve.motor == 1  && injector.syringe.motor == 1)
-	  			 cmd = queue.shift
+	  			 cmd = queue.shift[:cmd]
 	  			 write(cmd)
 	  			else
 	  			 puts "Motors still moving"
 	  			 other_queue.push(STATUS)
 	  			end
 	  		  else
-	  		  	cmd = queue.shift
+	  		  	cmd = queue.shift[:cmd]
 	  			write(cmd)
 	  		  end
 	  	end
@@ -263,14 +265,14 @@ private
 
 			#separate init process start
 	  	while !@cmd_queue_0.empty? do
-	  		write(@cmd_queue_0.shift)
+	  		write(@cmd_queue_0.shift[:cmd])
 	  		str = listen
 	  		rep = parse_response(str)
 	  		puts rep
 	  	end
 
 	  	while !@cmd_queue_1.empty? do
-	  		write(@cmd_queue_1.shift)
+	  		write(@cmd_queue_1.shift[:cmd])
 	  		str = listen
 	  		rep = parse_response(str)
 	  		puts rep
