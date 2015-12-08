@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
 
   spec.summary       = "A ruby program to control a mitos syringe pump"
   spec.description   = "This is useful for experimentalist with mitos pumps who need to control their pumps with code - useful for autonomous working"
-  spec.homepage      = "github.com/jonbramble/mitos"
+  spec.homepage      = "http://github.com/jonbramble/mitos"
   #spec.license       = "MIT"
 
   spec.files         = `git ls-files -z`.split("\x0").reject { |f| f.match(%r{^(test|spec|features)/}) }
