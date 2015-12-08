@@ -2,7 +2,7 @@ require 'spec_helper'
 
 RSpec.describe Mitos::Syringe do
 
-	context "#set_rate" do
+	context "#commands" do
 		before(:each) do
 			@address = 0
 			@syringe = Mitos::Syringe.new(@address)
@@ -11,6 +11,12 @@ RSpec.describe Mitos::Syringe do
 		describe "#get_fill_cmd" do
 			it "returns the correct command string" do
 				expect(@syringe.get_fill_cmd).to eq("E2 1 30000")
+			end
+		end
+
+		describe "#get_empty_cmd" do
+			it "returns the correct command string" do
+				expect(@syringe.get_empty_cmd).to eq("E2 1 0")
 			end
 		end
 

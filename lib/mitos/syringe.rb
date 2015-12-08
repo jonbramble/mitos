@@ -9,7 +9,7 @@ module Mitos
 	# Commands returned must be written to the pump
 	#
 	# * Position - position of the syringe in microns
-	# * Motor - the status of the motor, 1= idle, 2=moving
+	# * Motor - the status of the motor, -1= error, 0=uninitialised,1= idle, 2=moving
 	#
 	class Syringe
   
@@ -21,6 +21,7 @@ module Mitos
      		SET_POSITION = "I3"
 
      		ZERO_POSITION = 30000
+		EMPTY_POSITION = 0
 
      		# hard code syringe sizes for now
       		SYRINGE_SIZE = 2500
@@ -46,6 +47,13 @@ module Mitos
 	 		pos = rate*ZERO_POSITION/SYRINGE_SIZE
 	 		cmd = [SET_PUMP_RATE,pos].join(" ")
 	 	end
+
+		##
+		# Returns the command string to empty the syringe
+		#
+		def get_empty_cmd
+			cmd = [MOVE_SYRINGE_POS,EMPTY_POSITION].join(" ") 
+		end
 
 		##
 		# Returns the syringe status as a hash of values 
