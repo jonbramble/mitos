@@ -1,5 +1,6 @@
 require 'spec_helper'
 
+#double port obj
 class SPort
 
 end

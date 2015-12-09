@@ -1,9 +1,8 @@
 require 'rubyserial'
 
 module Mitos
-
      class XsDuoBasic
-
+ 	include Command
 	## COMMANDS ##
       	INITIALIZE_SYRINGE = "I1"
       	INITIALIZE_VALVE = "I2"
@@ -203,34 +202,7 @@ private
 	  	write(queue.shift[:cmd])
 	 end
 
-	 def parse_response(str)
-	 	# check the input is of the correct format - regexp
-	 	res = str.split(" ")
-	 	header = res[0].split("")
-	 	type = header[3].to_i
 
-	 	address = header[2]
-	 	
-	 	rep = {address: address.to_i, error: :false, type: res[1].to_i}	# response hash
-	 	
-	 	#command received
-	 	if type==1
-	 		rep[:status] = false
-	 	elsif type==9
-	 		rep[:status] = true
-	 		rep[:syringe_motor] = res[1].to_i
-	 		rep[:valve_motor] = res[2].to_i
-	 		rep[:syringe_position] = res[3].to_i
-	 		rep[:valve_position] = res[4].to_i
-	 	elsif type==8
-	 		rep[:error] = true
-	 	else
-	 		puts "Unknown response"
-	 	end
-
-	 	return rep
-
-	 end
 
 	## 
 	# Read from the serial port and retreive bytes upto the \r
