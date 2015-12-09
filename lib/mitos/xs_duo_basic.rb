@@ -4,7 +4,7 @@ module Mitos
 
      class XsDuoBasic
 
-	  ## COMMANDS ##
+	## COMMANDS ##
       	INITIALIZE_SYRINGE = "I1"
       	INITIALIZE_VALVE = "I2"
       	STATUS = "S3"
@@ -12,16 +12,16 @@ module Mitos
       	STOP = "X"
       	MYSTERY_V = "V"
 
-	  def initialize(port)
+	  def initialize(args)
 		# might have to load in the port from another module
-		@portname = port || "COM1"
-		@sp = Serial.new(@portname,9600,8)
+		@portname = args[:portname] || "COM1"
+		@sp = args[:port] || Serial.new(@portname,9600,8)
 
-		@cmd_queue_0 = CommandQueue.new(0)
-		@cmd_queue_1 = CommandQueue.new(1)
+		@cmd_queue_0 = args[:queue_0] || CommandQueue.new(0)
+		@cmd_queue_1 = args[:queue_1] || CommandQueue.new(1)
 
-		@injector_0 = Injector.new(0)
-		@injector_1 = Injector.new(1)
+		@injector_0 = args[:injector_0] || Injector.new(0)
+		@injector_1 = args[:injector_1] || Injector.new(1)
 	  end
 
 	  # run the init process and check that the pump is ready - otherwise end
