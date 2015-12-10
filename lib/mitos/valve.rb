@@ -50,7 +50,8 @@ module Mitos
 	 		when "D"
 	 		 cmd = [MOVE_VALVE_POS,FOUR_PORT_D].join(" ")
 	 		else
-	 		 puts "#{@position} is not a valid port setting for this pump"
+	 		 puts "#{@position} is not a valid port setting for this pump - resetting to A"
+	 		 cmd = [MOVE_VALVE_POS,FOUR_PORT_A].join(" ")
 	 		end
 	 		return cmd
 		end

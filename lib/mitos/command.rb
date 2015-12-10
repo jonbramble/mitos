@@ -25,12 +25,24 @@ module Mitos
 	 	elsif msg_type==8
 	 		rep[:sensor_error] = true
 	 	else
-	 		puts "Unknown response"
+	 		@log.error "Unknown response"
 	 	end
 
 	 	return rep
 
 	 end
+
+	#
+	# We need to know if the next command will move the motors - could move this to the syringe and valve class 
+	#
+	 def movement_cmd?(cmd)
+	  	ret = false
+	  	req = cmd[:request].split(" ")
+	  	if ["E2","I3"].include?(req[0])
+	  		ret = true
+	  	end
+	  	return ret
+	  end
 
 	end
 end

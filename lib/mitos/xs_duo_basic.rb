@@ -1,9 +1,17 @@
 require 'rubyserial'
+require 'logger'
 
 module Mitos
      class XsDuoBasic
- 	include Command
-	## COMMANDS ##
+
+     	#trap("INT") { 
+  		#	puts "Interrupted"
+  		#	exit
+	 	#}
+
+ 	 include Command
+
+	 ## COMMANDS ##
       	INITIALIZE_SYRINGE = "I1"
       	INITIALIZE_VALVE = "I2"
       	STATUS = "S3"
@@ -21,11 +29,19 @@ module Mitos
 
 		@injector_0 = args[:injector_0] || Injector.new(0)
 		@injector_1 = args[:injector_1] || Injector.new(1)
+
+		logger
 	  end
 
 	  # run the init process and check that the pump is ready - otherwise end
 	  def start
 		init
+	  end
+
+	  def logger
+	  	@log = Logger.new(STDOUT)
+		@log.level = Logger::INFO
+
 	  end
 
 	 ##
@@ -34,18 +50,15 @@ module Mitos
 	 # TODO: Fix the interrupt here - catch TERM signals
 	 #
 	  def run
+	  	begin 
 	  	write_command_status(@cmd_queue_0)
 	  	
-	  	puts "processing command queue..."
+	  	@log.info "processing command queue..."
 	  	loop do
 	  		begin
 	  			str = listen
 	  		rescue EOFError
-	  			puts "No more messages from pump"
-	  			break
-	  		rescue Interupt
-	  			puts "Operations halted"
-	  			#write stop
+	  			@log.error "No more messages from pump"
 	  			break
 	  		end
 
@@ -61,10 +74,20 @@ module Mitos
 	  		elsif !rep[:status]
 	  			process_command(rep)
 	  		else
-	  			puts "Unknown message type"
+	  			@log.error "Unknown message type"
 	  		end
 	  	end
-	  	puts "...command queue complete"
+	  	@log.info "...command queue complete"
+
+	  rescue IRB::Abort
+	  	@log.info "Abort"
+	  rescue Interrupt
+	  	@log.info "Interupt"
+	  	#write stop
+	  ensure 
+	  	@log.info "ensure"
+
+	  end
 
 	  end
 
@@ -87,7 +110,7 @@ module Mitos
 	# set the port valve
 	# For the XsDuoBasic there are 4 valve positions, A, B, C, D
 	#
-      	def set_port(address,position)
+     def set_port(address,position)
 	 	injector = eval "@injector_#{address}"
 	 	injector.valve.position = position
 	 	cmd = injector.valve.get_port_cmd
@@ -138,16 +161,16 @@ private
 
 		#command pending?
 	  	if queue.empty?#No
-	  		puts "Queue empty"
+	  		@log.debug "Queue empty"
 	  		write_command_status(other_queue)
 	  	else 
 	  		if movement_cmd?(queue.first)
-	  			puts "Movement command"
+	  			@log.debug "Movement command"
 	  			if(injector.valve.motor == 1  && injector.syringe.motor == 1)
-	  			 puts "Motors idle, running command"
+	  			 @log.debug "Motors idle, running command"
 	  			 write(queue.shift[:cmd])
 	  			else
-	  			 puts "Motors still moving switching queue"
+	  			 @log.debug "Motors still moving switching queue"
 	  			 write_command_status(other_queue)
 	  			end
 	  		else
@@ -156,17 +179,6 @@ private
 	  	end
 	  end
 
-	#
-	# We need to know if the next command will move the motors - could move this to the syringe and valve class 
-	#
-	  def movement_cmd?(cmd)
-	  	ret = false
-	  	req = cmd[:request].split(" ")
-	  	if ["E2","I3"].include?(req[0])
-	  		ret = true
-	  	end
-	  	return ret
-	  end
 
 	# 
 	# Response commands from the pump are processed to return debug messages and to trigger status messages
@@ -182,13 +194,13 @@ private
 
 	   		case rep[:type]
 	  			when 0
-	  				puts "Command OK"
+	  				@log.info "Command OK"
 	  			when 1
-	  				puts "Invalid Command"	
+	  				@log.error "Invalid Command"	
 	  			when 2
-	  				puts "Busy - command ignored"		
+	  				@log.error "Busy - command ignored"		
 	  			when 3
-	  				puts "Can't Process - input out of range or error"
+	  				@log.error "Can't Process - input out of range or error"
 	  				
 	  		end
 	  		write_command_status(queue)
@@ -202,14 +214,12 @@ private
 	  	write(queue.shift[:cmd])
 	 end
 
-
-
 	## 
 	# Read from the serial port and retreive bytes upto the \r
 	#
 	 def listen
 		rec = @sp.gets(sep="\r")
-		puts "<- " + rec
+		@log.debug "Rx: " + rec
 		return rec
 	 end
 
@@ -218,7 +228,7 @@ private
 	#
 	 def init
 	  	## contains startup writes
-		puts "Initialising pump ..."
+		@log.info "Initialising pump ..."
 
 		#flush comms
 		add_to_queue(0,FLUSH)
@@ -238,18 +248,18 @@ private
 	  		write(@cmd_queue_0.shift[:cmd])
 	  		str = listen
 	  		rep = parse_response(str)
-	  		puts rep
+	  		@log.debug rep
 	  	end
 
 	  	while !@cmd_queue_1.empty? do
 	  		write(@cmd_queue_1.shift[:cmd])
 	  		str = listen
 	  		rep = parse_response(str)
-	  		puts rep
+	  		@log.debug rep
 	  	end
 
 	  	sleep(1)
-	  	puts "Pump initialised"
+	  	@log.info "Pump initialised"
 		# could write and read a status message to set the valve and motor init states. 
 	 end
 
@@ -273,16 +283,15 @@ private
 	# writes cmd to the serial port with a sleep time for the mitos pump to reply
 	#
 	 def write(cmd)
-	 	 puts "-> "+ cmd
-		 @sp.write(cmd)
-		 sleep(0.25)
+	 	 @log.debug "Tx: "+cmd
+		 @sp.write cmd
+		 sleep 0.25 
 	 end
 
 	##
 	# We dont need to know the replies from the init commands
 	#
 	 def flush_input
-	 	#@sp.flush_input
 	 	@sp.read(7)
 	 	@sp.read(7)
 	 	sleep(1)
