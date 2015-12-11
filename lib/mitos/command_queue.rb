@@ -1,4 +1,6 @@
 module Mitos
+	##
+	# A thin wrapper around array for a command queue
 	class CommandQueue
 
 		attr_reader :address
@@ -15,7 +17,7 @@ module Mitos
 		end
 
 		def entry(command,request)
-			{cmd: command, address: @address, request: request, time_stamp: Time.now}
+			{cmd: command, address: @address, request: request}
 		end
 
 		def shift
@@ -24,6 +26,16 @@ module Mitos
 
 		def size
 			@q.size
+		end
+
+		def requests
+			rq = Array.new
+			@q.each {|cmd| rq << cmd[:request] }
+			return rq
+		end
+
+		def clear
+			@q.clear
 		end
 
 		def subscribe

@@ -4,12 +4,7 @@ require 'logger'
 module Mitos
      class XsDuoBasic
 
-     	#trap("INT") { 
-  		#	puts "Interrupted"
-  		#	exit
-	 	#}
-
- 	 include Command
+ 	include Command
 
 	 ## COMMANDS ##
       	INITIALIZE_SYRINGE = "I1"
@@ -30,7 +25,12 @@ module Mitos
 		@injector_0 = args[:injector_0] || Injector.new(0)
 		@injector_1 = args[:injector_1] || Injector.new(1)
 
+		@fill_port = "A"
+		@waste_port = "C"
+
 		logger
+
+		return true
 	  end
 
 	  # run the init process and check that the pump is ready - otherwise end
@@ -40,20 +40,38 @@ module Mitos
 
 	  def logger
 	  	@log = Logger.new(STDOUT)
-		@log.level = Logger::INFO
+		@log.level = Logger::DEBUG
+	  end
 
+	  def log_level(level)
+		@log.level = level
+	  end
+
+	  def show
+		@log.info self
+	  end
+
+	  def clear_queue(address)
+		queue = eval "@cmd_queue_#{address}"
+		queue.clear
+	  end
+
+	  def list_commands(address)
+		queue = eval "@cmd_queue_#{address}"
+		queue.requests do |cmd|
+		  puts cmd
+		end
 	  end
 
 	 ##
 	 # Run the list of commands pushed onto the queues
 	 # Never ending loop
-	 # TODO: Fix the interrupt here - catch TERM signals
 	 #
 	  def run
 	  	begin 
 	  	write_command_status(@cmd_queue_0)
 	  	
-	  	@log.info "processing command queue..."
+	  	@log.info "Processing command queue..."
 	  	loop do
 	  		begin
 	  			str = listen
@@ -69,7 +87,11 @@ module Mitos
 	  		# Is it a status message
 	  		# Yes
 	  		if rep[:status]
-	  			process_status(rep)
+	  			ret = process_status(rep)
+				@log.debug "status ret " + ret.to_s
+				if ret
+				 break
+				end
 	  		# No
 	  		elsif !rep[:status]
 	  			process_command(rep)
@@ -79,22 +101,52 @@ module Mitos
 	  	end
 	  	@log.info "...command queue complete"
 
-	  rescue IRB::Abort
-	  	@log.info "Abort"
-	  rescue Interrupt
-	  	@log.info "Interupt"
-	  	#write stop
-	  ensure 
-	  	@log.info "ensure"
+	  	rescue IRB::Abort
+	  		@log.error "Abort"
+			sleep(0.25)
+			write_stop
+			#flush comms?
+	  	rescue Interrupt
+	  		@log.info "Interupt"
+	  		#write_stop
+	  	ensure 
+	  		@log.info "Closing"
+			#write_stop
+	  	end
 
 	  end
 
+	  def close
+		puts "close"
+		@sp.close
 	  end
 
 	  def status
 	  	prepend_queue(0,STATUS)
 	  	prepend_queue(1,STATUS)
 	  end
+
+	  def quick_start
+		start
+		set_rate(0,2000)
+		set_rate(1,2000)
+		set_port(0,"A")
+		set_port(1,"D")
+		run
+	  end
+
+	def write_stop
+		
+		str = listen
+		parse_response(str)
+		 
+		@cmd_queue_0.unshift(STOP)
+		@cmd_queue_1.unshift(STOP)
+	  	write(@cmd_queue_0.shift[:cmd])
+		write(@cmd_queue_1.shift[:cmd])
+		parse_response(listen)
+		parse_response(listen)
+	end
 
 	 ##
          # set the pump rate in microlitres per minute
@@ -104,17 +156,19 @@ module Mitos
 	  	injector.syringe.rate = rate
 	  	cmd = injector.syringe.get_rate_cmd
 	  	add_to_queue(address,cmd)
+		return true
 	  end
 
 	##
 	# set the port valve
 	# For the XsDuoBasic there are 4 valve positions, A, B, C, D
 	#
-     def set_port(address,position)
+     	def set_port(address,position)
 	 	injector = eval "@injector_#{address}"
 	 	injector.valve.position = position
 	 	cmd = injector.valve.get_port_cmd
 	 	add_to_queue(address,cmd)
+		return true
 	 end
 
 	 ##
@@ -124,15 +178,17 @@ module Mitos
 	  	injector = eval "@injector_#{address}"
 	  	cmd = injector.syringe.get_fill_cmd
 	  	add_to_queue(address,cmd)
+		return true
 	  end
 
-	##
-	# completely empty the syringe
-	# 
+	 ##
+	 # completely empty the syringe
+	 # 
 	 def empty_syringe(address)
 		injector = eval "@injector_#{address}"
 		cmd = injector.syringe.get_empty_cmd
 		add_to_queue(address,cmd)
+		return true
 	 end
 
 private
@@ -142,14 +198,18 @@ private
 	#
 	def process_status(rep)
 	   	address = rep[:address]	#need to process queue for that address
-	  			
+	  	ret = 0		
+		empty = false
+
 	  	if address==1
 	  		queue = @cmd_queue_1
 	  		injector = @injector_1
+			other_injector = @injector_0
 	  		other_queue = @cmd_queue_0
 	  	else
 	  		queue = @cmd_queue_0
 	  		injector = @injector_0
+			other_injector = @injector_1
 	  		other_queue = @cmd_queue_1
 	  	end
 
@@ -159,16 +219,24 @@ private
 	  	injector.valve.motor = rep[:valve_motor]
 	  	injector.valve.position = rep[:valve_position]
 
+		
+		these_motors = other_injector.valve.motor == 1 && injector.syringe.motor == 1
+		other_motors = other_injector.valve.motor == 1 && other_injector.syringe.motor == 1
+		motors = these_motors && other_motors
+		empty = queue.empty? && other_queue.empty?		
+		#exit condition - all motors have stopped, all commands have been run
+		
 		#command pending?
 	  	if queue.empty?#No
 	  		@log.debug "Queue empty"
-	  		write_command_status(other_queue)
+			@log.debug "Other Queue empty " + other_queue.empty?.to_s
+			write_command_status(other_queue)
 	  	else 
 	  		if movement_cmd?(queue.first)
 	  			@log.debug "Movement command"
-	  			if(injector.valve.motor == 1  && injector.syringe.motor == 1)
+	  			if these_motors
 	  			 @log.debug "Motors idle, running command"
-	  			 write(queue.shift[:cmd])
+	  			 write(queue.shift[:cmd])	
 	  			else
 	  			 @log.debug "Motors still moving switching queue"
 	  			 write_command_status(other_queue)
@@ -176,10 +244,16 @@ private
 	  		else
 	  			write(queue.shift[:cmd])
 	  		end
+
+
 	  	end
+
+		@log.debug "e " + empty.to_s
+		@log.debug "m " + motors.to_s
+		return empty && motors
 	  end
 
-
+	  
 	# 
 	# Response commands from the pump are processed to return debug messages and to trigger status messages
 	#
@@ -248,14 +322,14 @@ private
 	  		write(@cmd_queue_0.shift[:cmd])
 	  		str = listen
 	  		rep = parse_response(str)
-	  		@log.debug rep
+			@log.debug rep
 	  	end
 
 	  	while !@cmd_queue_1.empty? do
 	  		write(@cmd_queue_1.shift[:cmd])
 	  		str = listen
 	  		rep = parse_response(str)
-	  		@log.debug rep
+			@log.debug rep
 	  	end
 
 	  	sleep(1)

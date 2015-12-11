@@ -88,6 +88,22 @@ describe "#unshift" do
  end
 end
 
+describe "#requests" do
+ it "returns an array of requests" do
+  @cmd_queue.push("A")
+  @cmd_queue.push("B")
+  expect(@cmd_queue.requests).to eq(["A","B"])
+ end
+end
+
+describe "#clear" do
+ it "clears an array of requests" do
+  @cmd_queue.push("A")
+  @cmd_queue.push("B")
+  expect{(@cmd_queue.clear)}.to change{@cmd_queue.size}.by(-2)
+ end
+end
+
 end
 
 end
