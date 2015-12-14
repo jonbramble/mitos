@@ -14,14 +14,14 @@ module Mitos
 	class Syringe
   
   		attr_reader :address 
-		attr_accessor :position, :motor, :initialised, :rate
+		attr_accessor :position, :motor, :initialised, :rate, :amount
 		
-		SET_PUMP_RATE = "E2 3"
+			SET_PUMP_RATE = "E2 3"
      		MOVE_SYRINGE_POS = "E2 1"
      		SET_POSITION = "I3"
 
      		ZERO_POSITION = 30000
-		EMPTY_POSITION = 0
+			EMPTY_POSITION = 0
 
      		# hard code syringe sizes for now
       		SYRINGE_SIZE = 2500
@@ -29,6 +29,7 @@ module Mitos
 		def initialize(address)
 			@address = address
 			@position = 0
+			@amount = 0
 			@motor = 0
 			@rate = 0
 		end
@@ -41,11 +42,20 @@ module Mitos
 	 	end
 		
 		## 
-		# Returns the command string for pump settings by letter
+		# Returns the command string for pump rate settings
 		#
 	 	def get_rate_cmd
 	 		pos = rate*ZERO_POSITION/SYRINGE_SIZE
 	 		cmd = [SET_PUMP_RATE,pos].join(" ")
+	 	end
+
+	 	##
+	 	#
+	 	#
+	 	def get_pump_amount_cmd
+	 		pos = @position - @amount*(ZERO_POSITION/SYRINGE_SIZE)
+	 		cmd = [MOVE_SYRINGE_POS,pos].join(" ")
+	 		#need to handle what to do with numbers larger than the syringe size
 	 	end
 
 		##

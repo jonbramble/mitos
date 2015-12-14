@@ -40,15 +40,27 @@ module Mitos
 
 	  def logger
 	  	@log = Logger.new(STDOUT)
-		@log.level = Logger::DEBUG
+		@log.level = Logger::INFO
 	  end
 
 	  def log_level(level)
 		@log.level = level
 	  end
 
-	  def show
-		@log.info self
+	  def info
+	  	(0..1).each do |a| 
+	  	 injector = eval("@injector_#{a}")
+	  	 valve = injector.valve.status
+	  	 syringe = injector.syringe.status
+	  	 puts "Syringe #{a}"
+	  	 puts "\tAddress: "+valve[:address].to_s
+	  	 puts "\tValve Position: "+valve[:position].to_s
+	  	 puts "\tValve Motor State: " + valve[:motor].to_s # need human string heres
+	  	 puts "\tSyringe Position: "+syringe[:position].to_s
+	  	 puts "\tSyringe Motor State: "+syringe[:motor].to_s
+	  	 puts "\tSyringe Rate: "+syringe[:rate].to_s
+	   end
+
 	  end
 
 	  def clear_queue(address)
@@ -117,7 +129,7 @@ module Mitos
 	  end
 
 	  def close
-		puts "close"
+		puts "closing port"
 		@sp.close
 	  end
 
@@ -189,6 +201,16 @@ module Mitos
 		cmd = injector.syringe.get_empty_cmd
 		add_to_queue(address,cmd)
 		return true
+	 end
+
+	 ##
+	 # pump a fixed amount at the set rate
+	 #
+	 def pump_microlitres(address,amount)
+	 	injector = eval "@injector_#{address}"
+	 	cmd = injector.syringe.get_pump_amount
+	 	add_to_queue(address,cmd)
+	 	return true
 	 end
 
 private
