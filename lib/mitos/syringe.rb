@@ -29,6 +29,7 @@ module Mitos
 		def initialize(address)
 			@address = address
 			@position = 0
+			@set_position = 0
 			@amount = 0
 			@motor = 0
 			@rate = 0
@@ -38,6 +39,7 @@ module Mitos
 		# Returns the command string for syringe fill
 		#
 		def get_fill_cmd
+			@set_position = ZERO_POSITION
 	 		cmd = [MOVE_SYRINGE_POS,ZERO_POSITION].join(" ") 
 	 	end
 		
@@ -53,7 +55,8 @@ module Mitos
 	 	#
 	 	#
 	 	def get_pump_amount_cmd
-	 		pos = @position - @amount*(ZERO_POSITION/SYRINGE_SIZE)
+	 		pos = @set_position - @amount*(ZERO_POSITION/SYRINGE_SIZE)
+	 		@set_position = pos
 	 		cmd = [MOVE_SYRINGE_POS,pos].join(" ")
 	 		#need to handle what to do with numbers larger than the syringe size
 	 	end
@@ -62,6 +65,7 @@ module Mitos
 		# Returns the command string to empty the syringe
 		#
 		def get_empty_cmd
+			@set_position = EMPTY_POSITION
 			cmd = [MOVE_SYRINGE_POS,EMPTY_POSITION].join(" ") 
 		end
 

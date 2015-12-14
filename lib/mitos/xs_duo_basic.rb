@@ -208,7 +208,8 @@ module Mitos
 	 #
 	 def pump_microlitres(address,amount)
 	 	injector = eval "@injector_#{address}"
-	 	cmd = injector.syringe.get_pump_amount
+	 	injector.syringe.amount = amount
+	 	cmd = injector.syringe.get_pump_amount_cmd
 	 	add_to_queue(address,cmd)
 	 	return true
 	 end
