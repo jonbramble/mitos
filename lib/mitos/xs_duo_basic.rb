@@ -99,9 +99,7 @@ module Mitos
 	  		# Is it a status message
 	  		# Yes
 	  		if rep[:status]
-	  			ret = process_status(rep)
-				@log.debug "status ret " + ret.to_s
-				if ret
+				if process_status(rep)
 				 break
 				end
 	  		# No
@@ -206,7 +204,7 @@ module Mitos
 	 ##
 	 # pump a fixed amount at the set rate
 	 #
-	 def pump_microlitres(address,amount)
+	 def dispense(address,amount)
 	 	injector = eval "@injector_#{address}"
 	 	injector.syringe.amount = amount
 	 	cmd = injector.syringe.get_pump_amount_cmd
@@ -238,10 +236,9 @@ private
 
 		# Write values from status process to the instance representations
 	  	injector.syringe.motor = rep[:syringe_motor]
-	  	injector.syringe.position = rep[:syringe_motor]
+	  	injector.syringe.position = rep[:syringe_position]
 	  	injector.valve.motor = rep[:valve_motor]
 	  	injector.valve.position = rep[:valve_position]
-
 		
 		these_motors = other_injector.valve.motor == 1 && injector.syringe.motor == 1
 		other_motors = other_injector.valve.motor == 1 && other_injector.syringe.motor == 1
@@ -271,8 +268,6 @@ private
 
 	  	end
 
-		@log.debug "e " + empty.to_s
-		@log.debug "m " + motors.to_s
 		return empty && motors
 	  end
 
