@@ -38,11 +38,6 @@ RSpec.describe Mitos::Syringe do
 				@syringe.amount = 2500
 				expect(@syringe.get_pump_amount_cmd).to eq("E2 1 0")
 			end
-			it "returns the correct command string" do
-				@syringe.position = 15000
-				@syringe.amount = 1250
-				expect(@syringe.get_pump_amount_cmd).to eq("E2 1 0")
-			end
 		end
 
 	end

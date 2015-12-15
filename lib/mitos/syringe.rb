@@ -29,7 +29,7 @@ module Mitos
 		def initialize(address)
 			@address = address
 			@position = 0
-			@set_position = 0
+			@set_position = ZERO_POSITION
 			@amount = 0
 			@motor = 0
 			@rate = 0
